@@ -51,6 +51,11 @@ const chatSessionId = ref('')
 const aiTestResult = ref('')
 const isTestingAI = ref(false)
 
+// 规则AI机器人相关
+const ruleBotAvailable = ref(true)  // 规则AI始终可用
+const ruleBotDifficulty = ref(3)    // 规则AI难度 1-5
+const isRuleBotGame = ref(false)    // 当前是否是与规则AI对战
+
 // 检查登录状态
 const checkLogin = async () => {
   const token = localStorage.getItem('token')
@@ -113,6 +118,48 @@ const addAIBot = async () => {
   } catch (e) {
     alert('添加AI-Bot失败')
   }
+}
+
+// 添加规则AI机器人
+const addRuleBot = async () => {
+  if (!roomCode.value) {
+    alert('请先创建房间')
+    return
+  }
+  
+  try {
+    const res = await fetch('/api/rule-bot/add', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ 
+        roomCode: roomCode.value,
+        difficulty: ruleBotDifficulty.value
+      })
+    })
+    const data = await res.json()
+    
+    if (data.success) {
+      isRuleBotGame.value = true
+      gameStatus.value = 'playing'
+      myColor.value = 1
+      alert(`规则AI机器人(难度${ruleBotDifficulty.value})已加入对局！`)
+    } else {
+      alert(data.message)
+    }
+  } catch (e) {
+    alert('添加规则AI机器人失败')
+  }
+}
+
+// 与规则AI对战
+const playWithRuleBot = async () => {
+  await createRoom()
+  setTimeout(() => {
+    addRuleBot()
+  }, 500)
 }
 
 // 发送聊天消息
@@ -627,13 +674,38 @@ onMounted(() => {
           <button v-if="aiEnabled" class="cyber-button ai-btn" @click="playWithAI">
             <span class="button-text">🤖 与AI对战</span>
           </button>
+          <button class="cyber-button rule-ai-btn" @click="playWithRuleBot">
+            <span class="button-text">🎯 规则AI对战</span>
+          </button>
           <button class="cyber-button accent" @click="viewRecords">
             <span class="button-text">对局记录</span>
           </button>
         </div>
 
+        <!-- 规则AI设置 -->
+        <div class="panel-section rule-ai-section">
+          <h3 class="panel-title">规则AI设置</h3>
+          <div class="rule-ai-status">
+            <span class="status-indicator online"></span>
+            <span>规则AI: 始终可用</span>
+          </div>
+          <div class="difficulty-selector">
+            <label>难度等级：</label>
+            <select v-model="ruleBotDifficulty" class="difficulty-select">
+              <option :value="1">1 - 新手</option>
+              <option :value="2">2 - 简单</option>
+              <option :value="3">3 - 中等</option>
+              <option :value="4">4 - 困难</option>
+              <option :value="5">5 - 大师</option>
+            </select>
+          </div>
+          <p class="rule-ai-desc">
+            基于Alpha-Beta剪枝算法的五子棋AI，无需联网即可对战
+          </p>
+        </div>
+
         <div v-if="aiEnabled" class="panel-section ai-section">
-          <h3 class="panel-title">AI设置</h3>
+          <h3 class="panel-title">大模型AI设置</h3>
           <div class="ai-status">
             <span class="status-indicator online"></span>
             <span>AI服务: 已启用</span>
@@ -1418,6 +1490,53 @@ body {
 
 .ai-section {
   border-color: #ff00ff !important;
+}
+
+/* 规则AI样式 */
+.rule-ai-btn {
+  border-color: #00ffff !important;
+  color: #00ffff !important;
+  box-shadow: 0 0 10px rgba(0, 255, 255, 0.3) !important;
+}
+
+.rule-ai-section {
+  border-color: #00ffff !important;
+}
+
+.rule-ai-status {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+  font-size: 0.875rem;
+}
+
+.difficulty-selector {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.difficulty-select {
+  background: rgba(0, 255, 255, 0.1);
+  border: 1px solid #00ffff;
+  color: #00ffff;
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  font-size: 0.875rem;
+  cursor: pointer;
+}
+
+.difficulty-select option {
+  background: #0a0a0a;
+  color: #00ffff;
+}
+
+.rule-ai-desc {
+  font-size: 0.75rem;
+  color: #888;
+  margin-top: 0.5rem;
 }
 
 .ai-status {

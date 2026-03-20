@@ -1,0 +1,94 @@
+# 游戏大厅项目 - 代码统计报告
+
+生成时间：2026-03-14
+
+================================
+一、总体统计
+================================
+
+总代码行数：3590 行
+
+按文件类型统计：
+- Java文件：1389 行
+- Vue文件：1776 行
+- JavaScript文件：16 行
+- CSS文件：296 行
+- HTML文件：13 行
+- Shell脚本：54 行
+- 配置文件：46 行
+
+================================
+二、详细文件统计
+================================
+
+【Java文件】
+  ./backend/AIService.java: 254 行
+  ./backend/GameLobbyServer.java: 1135 行
+
+【Vue文件】
+  ./frontend/src/App.vue: 1683 行
+  ./frontend/src/components/HelloWorld.vue: 93 行
+
+【JavaScript文件】
+  ./frontend/src/main.js: 5 行
+  ./frontend/vite.config.js: 11 行
+
+【CSS文件】
+  ./frontend/src/style.css: 296 行
+
+【HTML文件】
+  ./frontend/index.html: 13 行
+
+【Shell脚本】
+  ./backend/start.sh: 20 行
+  ./backend/stop.sh: 14 行
+  ./backend/build.sh: 20 行
+
+【配置文件】
+  ./backend/database.properties: 5 行
+  ./backend/ai-config.properties: 20 行
+  ./frontend/.vscode/extensions.json: 3 行
+  ./frontend/package.json: 18 行
+
+================================
+三、代码规模说明
+================================
+
+本项目是一个完整的五子棋多人联机对战平台，包含以下核心功能：
+
+1. 用户系统
+   - 用户登录/登出
+   - 单设备登录限制
+   - 用户信息管理
+
+2. 游戏系统
+   - 五子棋对战逻辑
+   - 房间创建/加入
+   - 快速匹配
+   - 实时同步（HTTP轮询）
+
+3. AI系统
+   - AI对战功能
+   - AI聊天对话
+   - 支持OpenAI兼容API
+
+4. 数据系统
+   - SQLite数据库
+   - 对局记录存储
+   - 用户数据管理
+
+5. 前端界面
+   - Vue3框架
+   - 赛博朋克风格UI
+   - 响应式设计（支持手机端）
+
+================================
+四、代码质量
+================================
+
+- 后端采用Java 21，代码结构清晰
+- 前端采用Vue3 Composition API
+- 使用HTTP轮询实现实时通信
+- 数据库使用SQLite，轻量级部署
+- 完整的错误处理和日志记录
+

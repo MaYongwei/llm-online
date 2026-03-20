@@ -1,0 +1,40 @@
+# 依赖目录
+node_modules/
+frontend/node_modules/
+
+# 构建产物（保留target目录，但忽略部分内容）
+backend/target/*.class
+backend/target/*.jar
+backend/target/*.log
+backend/target/*.db
+frontend/target/
+
+# 日志文件
+*.log
+logs/
+
+# IDE配置
+.idea/
+.vscode/
+*.iml
+.DS_Store
+
+# 临时文件
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+
+# 环境配置（敏感信息）
+.env
+.env.local
+.env.*.local
+
+# 操作系统文件
+Thumbs.db
+.DS_Store
+
+# 数据库文件（可选，根据需要注释掉）
+# backend/target/game_lobby.db
+# backend/game_lobby.db

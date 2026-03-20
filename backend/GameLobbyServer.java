@@ -68,6 +68,8 @@ public class GameLobbyServer {
         server.createContext("/api/ai/add-bot", new AddAIBotHandler());
         server.createContext("/api/ai/status", new AIStatusHandler());
         server.createContext("/api/ai/test", new AITestHandler());
+        server.createContext("/api/rule-bot/add", new AddRuleBotHandler());  // 添加规则AI机器人
+        server.createContext("/api/rule-bot/status", new RuleBotStatusHandler());  // 规则AI状态
         
         server.setExecutor(java.util.concurrent.Executors.newCachedThreadPool());
         server.start();
@@ -104,6 +106,12 @@ public class GameLobbyServer {
         List<int[]> moves = new ArrayList<>();
         long startTime;
         Integer winnerId = null;
+        
+        // AI机器人相关
+        boolean hasRuleBot = false;      // 是否有规则AI机器人
+        int ruleBotPlayerNum = 0;        // 规则AI是几号玩家 (1或2)
+        int ruleBotDifficulty = 3;       // 规则AI难度 (1-5)
+        GomokuRuleAI ruleAI = null;      // 规则AI实例
         
         GameRoom(String roomCode, int player1Id) {
             this.roomCode = roomCode;
@@ -149,6 +157,53 @@ public class GameLobbyServer {
                 if (count >= 5) return player;
             }
             return 0;
+        }
+        
+        // 添加规则AI机器人
+        void addRuleBot(int botPlayerNum, int difficulty) {
+            this.hasRuleBot = true;
+            this.ruleBotPlayerNum = botPlayerNum;
+            this.ruleBotDifficulty = difficulty;
+            this.ruleAI = new GomokuRuleAI();
+            this.ruleAI.setDifficulty(difficulty);
+        }
+        
+        // 获取规则AI的下一步
+        int[] getRuleBotMove() {
+            if (!hasRuleBot || ruleAI == null) return null;
+            
+            // 构建游戏状态JSON
+            StringBuilder sb = new StringBuilder();
+            sb.append("{\"board\":[");
+            for (int i = 0; i < 15; i++) {
+                if (i > 0) sb.append(",");
+                sb.append("[");
+                for (int j = 0; j < 15; j++) {
+                    if (j > 0) sb.append(",");
+                    sb.append(board[i][j]);
+                }
+                sb.append("]");
+            }
+            sb.append("],\"myColor\":");
+            sb.append(ruleBotPlayerNum);
+            sb.append("}");
+            
+            String moveJson = ruleAI.calculateMove(sb.toString());
+            
+            // 解析移动JSON
+            try {
+                int xStart = moveJson.indexOf("\"x\":") + 4;
+                int xEnd = moveJson.indexOf(",", xStart);
+                int x = Integer.parseInt(moveJson.substring(xStart, xEnd).trim());
+                
+                int yStart = moveJson.indexOf("\"y\":") + 4;
+                int yEnd = moveJson.indexOf("}", yStart);
+                int y = Integer.parseInt(moveJson.substring(yStart, yEnd).trim());
+                
+                return new int[]{x, y};
+            } catch (Exception e) {
+                return null;
+            }
         }
     }
     
@@ -645,6 +700,43 @@ public class GameLobbyServer {
                             }).start();
                         }
                         
+                        // 如果对手是规则AI机器人且游戏未结束，规则AI自动下棋
+                        if (winner == 0 && room.hasRuleBot && room.currentTurn == room.ruleBotPlayerNum) {
+                            new Thread(() -> {
+                                try {
+                                    Thread.sleep(300); // 延迟300ms让玩家看到自己的落子
+                                    
+                                    synchronized (room) {
+                                        if (room.status.equals("playing")) {
+                                            int[] botMove = room.getRuleBotMove();
+                                            
+                                            if (botMove != null && room.makeMove(botMove[0], botMove[1], -1)) {
+                                                int botWinner = room.checkWin(botMove[0], botMove[1]);
+                                                
+                                                Map<String, Object> botMoveMsg = new HashMap<>();
+                                                botMoveMsg.put("type", "move");
+                                                botMoveMsg.put("x", botMove[0]);
+                                                botMoveMsg.put("y", botMove[1]);
+                                                botMoveMsg.put("player", room.ruleBotPlayerNum);
+                                                botMoveMsg.put("nextTurn", room.currentTurn);
+                                                
+                                                if (botWinner > 0) {
+                                                    botMoveMsg.put("winner", -1);
+                                                    room.status = "ended";
+                                                    room.winnerId = -1;
+                                                    saveGameResult(room, -1);
+                                                }
+                                                
+                                                notifyRoom(room, botMoveMsg);
+                                            }
+                                        }
+                                    }
+                                } catch (Exception e) {
+                                    e.printStackTrace();
+                                }
+                            }).start();
+                        }
+                        
                         response = "{\"success\":true}";
                     } else {
                         response = "{\"success\":false,\"message\":\"无效移动\"}";
@@ -1130,6 +1222,83 @@ public class GameLobbyServer {
                       .replace("\"", "\\\"")
                       .replace("\n", "\\n")
                       .replace("\r", "\\r");
+        }
+    }
+    
+    // 添加规则AI机器人处理器
+    static class AddRuleBotHandler implements HttpHandler {
+        @Override
+        public void handle(HttpExchange exchange) throws IOException {
+            setCorsHeaders(exchange);
+            
+            if ("OPTIONS".equals(exchange.getRequestMethod())) {
+                exchange.sendResponseHeaders(200, -1);
+                return;
+            }
+            
+            String requestBody = new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
+            
+            try {
+                // 解析请求
+                String roomCode = extractValue(requestBody, "roomCode");
+                int difficulty = 3; // 默认中等难度
+                String diffStr = extractValue(requestBody, "difficulty");
+                if (diffStr != null && !diffStr.isEmpty()) {
+                    difficulty = Integer.parseInt(diffStr);
+                }
+                
+                GameRoom room = gameRooms.get(roomCode);
+                if (room == null) {
+                    sendJsonResponse(exchange, "{\"success\":false,\"message\":\"房间不存在\"}");
+                    return;
+                }
+                
+                if (room.player2Id != null) {
+                    sendJsonResponse(exchange, "{\"success\":false,\"message\":\"房间已满\"}");
+                    return;
+                }
+                
+                // 添加规则AI机器人（作为2号玩家）
+                room.addRuleBot(2, difficulty);
+                room.player2Id = -1; // AI机器人使用特殊ID
+                room.status = "playing";
+                
+                // 通知玩家
+                Map<String, Object> message = new HashMap<>();
+                message.put("type", "opponent_joined");
+                message.put("opponent", Map.of(
+                    "id", -1,
+                    "username", "规则AI",
+                    "nickname", "规则AI(难度" + difficulty + ")",
+                    "level", 50,
+                    "rank", "AI",
+                    "isRuleBot", true,
+                    "difficulty", difficulty
+                ));
+                notifyRoom(room, message);
+                
+                sendJsonResponse(exchange, "{\"success\":true,\"message\":\"规则AI机器人已加入\"}");
+                
+            } catch (Exception e) {
+                sendJsonResponse(exchange, "{\"success\":false,\"message\":\"" + e.getMessage() + "\"}");
+            }
+        }
+    }
+    
+    // 规则AI状态处理器
+    static class RuleBotStatusHandler implements HttpHandler {
+        @Override
+        public void handle(HttpExchange exchange) throws IOException {
+            setCorsHeaders(exchange);
+            
+            if ("OPTIONS".equals(exchange.getRequestMethod())) {
+                exchange.sendResponseHeaders(200, -1);
+                return;
+            }
+            
+            // 规则AI始终可用
+            String response = "{\"success\":true,\"available\":true,\"message\":\"规则AI始终可用\"}";
+            sendJsonResponse(exchange, response);
         }
     }
 }
